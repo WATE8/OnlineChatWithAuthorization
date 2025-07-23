@@ -42,6 +42,15 @@
             padding: 10px;
             margin-top: 10px;
             background: #fafafa;
+            font-size: 14px;
+        }
+        .system {
+            color: gray;
+            font-style: italic;
+        }
+        .you {
+            font-weight: bold;
+            color: #0b5ed7;
         }
     </style>
 </head>
@@ -68,6 +77,7 @@
 <script>
     let token = "";
     let socket;
+    let currentUser = "";
 
     async function register() {
         const username = document.getElementById("username").value.trim();
@@ -106,6 +116,7 @@
 
         if (data.token) {
             token = data.token;
+            currentUser = username;
             document.getElementById("auth").style.display = "none";
             document.getElementById("chat").style.display = "block";
             document.getElementById("userDisplay").textContent = username;
@@ -118,20 +129,53 @@
     function connectWebSocket() {
         socket = new WebSocket("ws://localhost:8080/chat?token=" + token);
 
+        socket.onopen = () => {
+            console.log("WebSocket открыт");
+        };
+
+        socket.onclose = () => {
+            alert("🔌 Соединение с сервером закрыто");
+        };
+
+        socket.onerror = () => {
+            alert("❌ Ошибка WebSocket");
+        };
+
         socket.onmessage = (event) => {
             const div = document.createElement("div");
-            div.textContent = event.data;
+            const msg = event.data;
+
+            if (msg.startsWith("🔵") || msg.startsWith("🔴") || msg.startsWith("Добро пожаловать")) {
+                div.className = "system";
+                div.textContent = msg;
+            } else if (msg.startsWith(currentUser + ":")) {
+                div.className = "you";
+                div.textContent = msg;
+            } else {
+                div.textContent = msg;
+            }
+
             document.getElementById("messages").appendChild(div);
             document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
         };
     }
 
     function sendMsg() {
-        const msg = document.getElementById("msgInput").value;
-        if (msg.trim() === "") return;
+        const input = document.getElementById("msgInput");
+        const msg = input.value.trim();
+        if (!msg || !socket || socket.readyState !== WebSocket.OPEN) return;
         socket.send(msg);
-        document.getElementById("msgInput").value = "";
+        input.value = "";
+        input.focus();
     }
+
+    // Отправка по Enter
+    document.getElementById("msgInput").addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+            sendMsg();
+        }
+    });
 </script>
 
 </body>

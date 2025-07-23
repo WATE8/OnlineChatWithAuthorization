@@ -10,6 +10,7 @@ import java.security.Key;
 import java.util.*;
 
 public class ChatWebSocketHandler extends TextWebSocketHandler {
+
     private final Map<WebSocketSession, String> sessions = new HashMap<>();
     private final Key SECRET_KEY;
 
@@ -25,17 +26,24 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             session.close();
             return;
         }
+
         String token = query.replace("token=", "");
         try {
-            String username = Jwts.parserBuilder()
+            Claims claims = Jwts.parserBuilder()
                     .setSigningKey(SECRET_KEY)
                     .build()
                     .parseClaimsJws(token)
-                    .getBody()
-                    .getSubject();
+                    .getBody();
 
+            String username = claims.getSubject();
             sessions.put(session, username);
-            session.sendMessage(new TextMessage("Welcome, " + username + "!"));
+
+            // Личное приветствие
+            session.sendMessage(new TextMessage("Добро пожаловать в чат, " + username + "!"));
+
+            // Уведомление всем
+            broadcast("🔵 " + username + " вошёл в чат");
+
         } catch (Exception e) {
             session.close();
         }
@@ -43,15 +51,29 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-        String user = sessions.get(session);
-        String text = user + ": " + message.getPayload();
-        for (WebSocketSession s : sessions.keySet()) {
-            if (s.isOpen()) s.sendMessage(new TextMessage(text));
+        String username = sessions.get(session);
+        if (username != null) {
+            String text = username + ": " + message.getPayload();
+            broadcast(text);
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        sessions.remove(session);
+        String username = sessions.get(session);
+        if (username != null) {
+            sessions.remove(session);
+            broadcast("🔴 " + username + " покинул чат");
+        }
+    }
+
+    private void broadcast(String message) {
+        for (WebSocketSession s : sessions.keySet()) {
+            if (s.isOpen()) {
+                try {
+                    s.sendMessage(new TextMessage(message));
+                } catch (Exception ignored) {}
+            }
+        }
     }
 }
