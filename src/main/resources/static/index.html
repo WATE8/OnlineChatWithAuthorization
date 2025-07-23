@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Онлайн-чат</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        #auth, #chat {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 400px;
+            margin: 20px auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        input {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        button {
+            margin-top: 10px;
+            padding: 10px;
+            width: 49%;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #messages {
+            border: 1px solid #ccc;
+            height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-top: 10px;
+            background: #fafafa;
+        }
+    </style>
+</head>
+<body>
+
+<h1 style="text-align: center;">Добро пожаловать в чат!</h1>
+
+<div id="auth">
+    <input type="text" id="username" placeholder="Имя">
+    <input type="password" id="password" placeholder="Пароль">
+    <div style="display: flex; justify-content: space-between;">
+        <button onclick="register()">Регистрация</button>
+        <button onclick="login()">Вход</button>
+    </div>
+</div>
+
+<div id="chat" style="display: none;">
+    <p>Вы вошли как <span id="userDisplay"></span></p>
+    <input type="text" id="msgInput" placeholder="Введите сообщение...">
+    <button onclick="sendMsg()" style="width: 100%; margin-top: 10px;">Отправить</button>
+    <div id="messages"></div>
+</div>
+
+<script>
+    let token = "";
+    let socket;
+
+    async function register() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+
+        if (!username || !password) {
+            alert("Введите имя и пароль");
+            return;
+        }
+
+        const res = await fetch("/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        alert(await res.text());
+    }
+
+    async function login() {
+        const username = document.getElementById("username").value.trim();
+        const password = document.getElementById("password").value.trim();
+
+        if (!username || !password) {
+            alert("Введите имя и пароль");
+            return;
+        }
+
+        const res = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (data.token) {
+            token = data.token;
+            document.getElementById("auth").style.display = "none";
+            document.getElementById("chat").style.display = "block";
+            document.getElementById("userDisplay").textContent = username;
+            connectWebSocket();
+        } else {
+            alert(data.error || "Ошибка входа");
+        }
+    }
+
+    function connectWebSocket() {
+        socket = new WebSocket("ws://localhost:8080/chat?token=" + token);
+
+        socket.onmessage = (event) => {
+            const div = document.createElement("div");
+            div.textContent = event.data;
+            document.getElementById("messages").appendChild(div);
+            document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
+        };
+    }
+
+    function sendMsg() {
+        const msg = document.getElementById("msgInput").value;
+        if (msg.trim() === "") return;
+        socket.send(msg);
+        document.getElementById("msgInput").value = "";
+    }
+</script>
+
+</body>
+</html>
